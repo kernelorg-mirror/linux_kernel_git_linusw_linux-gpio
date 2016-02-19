@@ -21,6 +21,8 @@
 #include <linux/mutex.h>
 #include <linux/backing-dev.h>
 #include <linux/tty.h>
+#include <linux/bitmap.h>
+#include <linux/bitops.h>
 
 #include "internal.h"
 
@@ -36,6 +38,31 @@ static struct char_device_struct {
 	char name[64];
 	struct cdev *cdev;		/* will die */
 } *chrdevs[CHRDEV_MAJOR_HASH_SIZE];
+
+/*
+ * A bitmap for the 255 lower device numbers. A "1" means the
+ * major number is taken, a "0" means it is available. We first
+ * need to define all the assigned devices as taken so that
+ * dynamic device allocation will not go in and steal them.
+ */
+static unsigned long majors_map[] = {
+	/* 8 and 26 are free */
+	BITS32(0, 7) | BITS32(9, 25) | BITS32(27, 31),
+	/* 40 and 60-63 are free */
+	BITS32(32, 39) | BITS32(41, 59),
+	/* 93 and 94 are free */
+	BITS32(64, 92) | BIT_MASK(95),
+	/* 102 and 120-127 are free */
+	BITS32(96, 101) | BITS32(103, 119),
+	/* 159 is free */
+	BITS32(128, 158),
+	/* No free numbers */
+	~0x0U,
+	/* 213-215 and 222-223 are free */
+	BITS32(192, 212) | BITS32(216, 221),
+	/* 234-254 are free */
+	BITS32(224, 233) | BIT_MASK(255)
+};
 
 /* index in the above */
 static inline int major_to_index(unsigned major)
@@ -84,22 +111,25 @@ __register_chrdev_region(unsigned int major, unsigned int baseminor,
 
 	mutex_lock(&chrdevs_lock);
 
-	/* temporary */
 	if (major == 0) {
-		for (i = ARRAY_SIZE(chrdevs)-1; i > 0; i--) {
-			if (chrdevs[i] == NULL)
-				break;
-		}
-
-		if (i < CHRDEV_MAJOR_DYN_END)
-			pr_warn("CHRDEV \"%s\" major number %d goes below the dynamic allocation range",
-				name, i);
-
-		if (i == 0) {
+		i = find_first_zero_bit(majors_map, CHRDEV_MAJOR_HASH_SIZE);
+		if (i == CHRDEV_MAJOR_HASH_SIZE) {
+			pr_warn("CHRDEV: \"%s\" out of major numbers",
+				name);
 			ret = -EBUSY;
 			goto out;
 		}
-		major = i;
+		/* Allocate from the top (254 and down) */
+		while (i != CHRDEV_MAJOR_HASH_SIZE) {
+			major = i;
+			i++;
+			i = find_next_zero_bit(majors_map,
+					       CHRDEV_MAJOR_HASH_SIZE,
+					       i);
+		}
+		set_bit(major, majors_map);
+		pr_debug("CHRDEV: \"%s\" using major %d\n",
+			 name, major);
 	}
 
 	cd->major = major;

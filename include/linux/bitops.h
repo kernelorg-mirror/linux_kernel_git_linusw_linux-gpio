@@ -24,6 +24,12 @@
 #define GENMASK_ULL(h, l) \
 	(((~0ULL) << (l)) & (~0ULL >> (BITS_PER_LONG_LONG - 1 - (h))))
 
+/*
+ * BITS32 creates a 32-bit mask starting at bit @s and ending at bit
+ * @e, clamped to the 32-bit bitspace if exceeding 31.
+ */
+#define BITS32(s, e) GENMASK((e % BITS_PER_LONG), (s % BITS_PER_LONG))
+
 extern unsigned int __sw_hweight8(unsigned int w);
 extern unsigned int __sw_hweight16(unsigned int w);
 extern unsigned int __sw_hweight32(unsigned int w);
