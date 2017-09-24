@@ -1,0 +1,24 @@
+External Connector Using GPIO
+
+Required properties:
+- compatible: should be "extcon-gpio"
+- extcon-gpios: the GPIO lines used for the external connectors
+  See gpio/gpio.txt
+- extcon-connector-types: set to an unsigned integer value arrat representing the types
+  of this connector, matched to the corresponding GPIO lines in the previous array.
+  Those are defined with unique IDs in <dt-bindings/extcon/connectors.h>
+- input-debounce: The number of microseconds to wait for the
+  connector state to stabilize. This property is reused from pin control
+  See pinctrl/pinctrl-bindings.txt
+
+Example:
+
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/extcon/connectors.h>
+
+extcon {
+	compatible = "extcon-gpio";
+	extcon-gpios = <&gpio0 42 GPIO_ACTIVE_LOW>;
+	extcon-connector-types = <EXTCON_USB>;
+	input-debounce = <20000>; /* 20 ms */
+};
