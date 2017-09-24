@@ -28,7 +28,8 @@
  * @debounce_jiffies:	Number of jiffies to wait for the GPIO to stabilize, from the debounce
  *			value.
  * @gpiod:		GPIO descriptor for this external connector.
- * @extcon_id:		The unique id of specific external connector.
+ * @connector_type:	The connector type we're detecting on this extcon, terminated with EXTCON_NONE
+ *			One GPIO is one cable, so one type only.
  * @check_on_resume:	Boolean describing whether to check the state of gpio
  *			while resuming from sleep.
  */
@@ -37,7 +38,7 @@ struct gpio_extcon_data {
 	struct delayed_work work;
 	unsigned long debounce_jiffies;
 	struct gpio_desc *gpiod;
-	unsigned int extcon_id;
+	unsigned int connector_type[2];
 	bool check_on_resume;
 };
 
@@ -49,7 +50,7 @@ static void gpio_extcon_work(struct work_struct *work)
 			     work);
 
 	state = gpiod_get_value_cansleep(data->gpiod);
-	extcon_set_state_sync(data->edev, data->extcon_id, state);
+	extcon_set_state_sync(data->edev, data->connector_type[0], state);
 }
 
 static irqreturn_t gpio_irq_handler(int irq, void *dev_id)
@@ -67,6 +68,7 @@ static int gpio_extcon_probe(struct platform_device *pdev)
 	struct device *dev = &pdev->dev;
 	unsigned long irq_flags;
 	u32 debounce_usecs;
+	u32 connector_type;
 	int irq;
 	int ret;
 
@@ -102,8 +104,16 @@ static int gpio_extcon_probe(struct platform_device *pdev)
 	else
 		irq_flags = IRQF_TRIGGER_RISING;
 
+	ret = device_property_read_u32(dev, "extcon-connector-types", &connector_type);
+	if (ret || !connector_type) {
+		dev_err(dev, "illegal cable type or undefined cable type\n");
+		return -EINVAL;
+	}
+	data->connector_type[0] = connector_type;
+	data->connector_type[1] = EXTCON_NONE;
+
 	/* Allocate the memory of extcon devie and register extcon device */
-	data->edev = devm_extcon_dev_allocate(dev, &data->extcon_id);
+	data->edev = devm_extcon_dev_allocate(dev, data->connector_type);
 	if (IS_ERR(data->edev)) {
 		dev_err(dev, "failed to allocate extcon device\n");
 		return -ENOMEM;
