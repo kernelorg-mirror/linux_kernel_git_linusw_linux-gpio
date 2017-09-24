@@ -17,6 +17,7 @@
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/platform_device.h>
+#include <linux/property.h>
 #include <linux/slab.h>
 #include <linux/workqueue.h>
 
@@ -28,7 +29,6 @@
  *			value.
  * @gpiod:		GPIO descriptor for this external connector.
  * @extcon_id:		The unique id of specific external connector.
- * @debounce:		Debounce time for GPIO IRQ in ms.
  * @check_on_resume:	Boolean describing whether to check the state of gpio
  *			while resuming from sleep.
  */
@@ -38,7 +38,6 @@ struct gpio_extcon_data {
 	unsigned long debounce_jiffies;
 	struct gpio_desc *gpiod;
 	unsigned int extcon_id;
-	unsigned long debounce;
 	bool check_on_resume;
 };
 
@@ -67,6 +66,7 @@ static int gpio_extcon_probe(struct platform_device *pdev)
 	struct gpio_extcon_data *data;
 	struct device *dev = &pdev->dev;
 	unsigned long irq_flags;
+	u32 debounce_usecs;
 	int irq;
 	int ret;
 
@@ -108,6 +108,15 @@ static int gpio_extcon_probe(struct platform_device *pdev)
 		dev_err(dev, "failed to allocate extcon device\n");
 		return -ENOMEM;
 	}
+
+	ret = device_property_read_u32(dev, "input-debounce", &debounce_usecs);
+	if (ret || !debounce_usecs) {
+		dev_err(dev, "illegal debounce value, set to 20 ms\n");
+		debounce_usecs = 20000;
+	}
+	ret = gpiod_set_debounce(data->gpiod, debounce_usecs);
+	if (ret)
+		data->debounce_jiffies = msecs_to_jiffies(debounce_usecs * 1000);
 
 	ret = devm_extcon_dev_register(dev, data->edev);
 	if (ret < 0)
