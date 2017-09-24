@@ -86,6 +86,15 @@ static int gpio_extcon_probe(struct platform_device *pdev)
 	if (data->extcon_id > EXTCON_NONE)
 		return -EINVAL;
 
+	/*
+	 * Always checking connector state on resume makes most sense so do this
+	 * by default.
+	 *
+	 * TODO: if parameterization is needed, augment this to use proper device
+	 * properties or set it up from PM core.
+	 */
+	data->check_on_resume = true;
+
 	data->gpiod = devm_gpiod_get(dev, "extcon", GPIOD_IN);
 	if (IS_ERR(data->gpiod))
 		return PTR_ERR(data->gpiod);
