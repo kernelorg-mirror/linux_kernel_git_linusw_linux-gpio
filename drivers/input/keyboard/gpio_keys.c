@@ -539,7 +539,9 @@ static int gpio_keys_setup_key(struct platform_device *pdev,
 	} else if (gpio_is_valid(button->gpio)) {
 		/*
 		 * Legacy GPIO number, so request the GPIO here and
-		 * convert it to descriptor.
+		 * convert it to descriptor. This code goes away once
+		 * we convert all old board files to provide descriptor
+		 * tables.
 		 */
 		unsigned flags = GPIOF_IN;
 
@@ -556,6 +558,16 @@ static int gpio_keys_setup_key(struct platform_device *pdev,
 		bdata->gpiod = gpio_to_desc(button->gpio);
 		if (!bdata->gpiod)
 			return -EINVAL;
+	} else {
+		/*
+		 * Try to look up from the descriptor table, includes
+		 * letting gpiolib handle inversion semantics. This is
+		 * optional since we have interrupt-only keys as well.
+		 */
+		bdata->gpiod = devm_gpiod_get_optional(dev, desc,
+						       GPIOD_IN);
+		if (IS_ERR(bdata->gpiod))
+			return PTR_ERR(bdata->gpiod);
 	}
 
 	if (bdata->gpiod) {

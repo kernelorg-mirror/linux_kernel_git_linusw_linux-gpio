@@ -333,6 +333,16 @@ static int gpio_keys_polled_probe(struct platform_device *pdev)
 					button->gpio);
 				return -EINVAL;
 			}
+		} else {
+			/*
+			 * Try to look up from the descriptor table, includes
+			 * letting gpiolib handle inversion semantics.
+			 */
+			bdata->gpiod = devm_gpiod_get_optional(dev,
+							       button->desc,
+							       GPIOD_IN);
+			if (IS_ERR(bdata->gpiod))
+				return PTR_ERR(bdata->gpiod);
 		}
 
 		bdata->last_state = -1;
