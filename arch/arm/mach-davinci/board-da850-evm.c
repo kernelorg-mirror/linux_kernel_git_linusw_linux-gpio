@@ -412,11 +412,9 @@ static const char * const da850_evm_ui_exp[] = {
 static struct gpio_keys_button da850_evm_ui_keys[] = {
 	[0 ... DA850_N_UI_PB - 1] = {
 		.type			= EV_KEY,
-		.active_low		= 1,
 		.wakeup			= 0,
 		.debounce_interval	= DA850_KEYS_DEBOUNCE_MS,
 		.code			= -1, /* assigned at runtime */
-		.gpio			= -1, /* assigned at runtime */
 		.desc			= NULL, /* assigned at runtime */
 	},
 };
@@ -435,6 +433,29 @@ static struct platform_device da850_evm_ui_keys_device = {
 	},
 };
 
+static struct gpiod_lookup_table da850_evm_ui_keys_gpios_table = {
+	.dev_id = "gpio-keys-polled",
+	.table = {
+		GPIO_LOOKUP("tca6416-1-20", DA850_EVM_UI_EXP_PB8,
+			    "pb8", GPIO_ACTIVE_LOW),
+		GPIO_LOOKUP("tca6416-1-20", DA850_EVM_UI_EXP_PB7,
+			    "pb7", GPIO_ACTIVE_LOW),
+		GPIO_LOOKUP("tca6416-1-20", DA850_EVM_UI_EXP_PB6,
+			    "pb6", GPIO_ACTIVE_LOW),
+		GPIO_LOOKUP("tca6416-1-20", DA850_EVM_UI_EXP_PB5,
+			    "pb5", GPIO_ACTIVE_LOW),
+		GPIO_LOOKUP("tca6416-1-20", DA850_EVM_UI_EXP_PB4,
+			    "pb4", GPIO_ACTIVE_LOW),
+		GPIO_LOOKUP("tca6416-1-20", DA850_EVM_UI_EXP_PB3,
+			    "pb3", GPIO_ACTIVE_LOW),
+		GPIO_LOOKUP("tca6416-1-20", DA850_EVM_UI_EXP_PB2,
+			    "pb2", GPIO_ACTIVE_LOW),
+		GPIO_LOOKUP("tca6416-1-20", DA850_EVM_UI_EXP_PB1,
+			    "pb1", GPIO_ACTIVE_LOW),
+
+	},
+};
+
 static void da850_evm_ui_keys_init(unsigned gpio)
 {
 	int i;
@@ -444,8 +465,8 @@ static void da850_evm_ui_keys_init(unsigned gpio)
 		button = &da850_evm_ui_keys[i];
 		button->code = KEY_F8 - i;
 		button->desc = da850_evm_ui_exp[DA850_EVM_UI_EXP_PB8 + i];
-		button->gpio = gpio + DA850_EVM_UI_EXP_PB8 + i;
 	}
+	gpiod_add_lookup_table(&da850_evm_ui_keys_gpios_table);
 }
 
 #ifdef CONFIG_DA850_UI_SD_VIDEO_PORT
@@ -578,21 +599,17 @@ static const char * const da850_evm_bb_exp[] = {
 static struct gpio_keys_button da850_evm_bb_keys[] = {
 	[0] = {
 		.type			= EV_KEY,
-		.active_low		= 1,
 		.wakeup			= 0,
 		.debounce_interval	= DA850_KEYS_DEBOUNCE_MS,
 		.code			= KEY_PROG1,
 		.desc			= NULL, /* assigned at runtime */
-		.gpio			= -1, /* assigned at runtime */
 	},
 	[1 ... DA850_N_BB_USER_SW] = {
 		.type			= EV_SW,
-		.active_low		= 1,
 		.wakeup			= 0,
 		.debounce_interval	= DA850_KEYS_DEBOUNCE_MS,
 		.code			= -1, /* assigned at runtime */
 		.desc			= NULL, /* assigned at runtime */
-		.gpio			= -1, /* assigned at runtime */
 	},
 };
 
@@ -610,6 +627,30 @@ static struct platform_device da850_evm_bb_keys_device = {
 	},
 };
 
+static struct gpiod_lookup_table da850_evm_bb_keys_gpios_table = {
+	.dev_id = "gpio-keys-polled",
+	.table = {
+		GPIO_LOOKUP("tca6416-1-21", DA850_EVM_BB_EXP_USER_PB1,
+			    "user_pb1", GPIO_ACTIVE_LOW),
+		GPIO_LOOKUP("tca6416-1-21", DA850_EVM_BB_EXP_USER_SW1,
+			    "user_sw1", GPIO_ACTIVE_LOW),
+		GPIO_LOOKUP("tca6416-1-21", DA850_EVM_BB_EXP_USER_SW2,
+			    "user_sw2", GPIO_ACTIVE_LOW),
+		GPIO_LOOKUP("tca6416-1-21", DA850_EVM_BB_EXP_USER_SW3,
+			    "user_sw3", GPIO_ACTIVE_LOW),
+		GPIO_LOOKUP("tca6416-1-21", DA850_EVM_BB_EXP_USER_SW4,
+			    "user_sw4", GPIO_ACTIVE_LOW),
+		GPIO_LOOKUP("tca6416-1-21", DA850_EVM_BB_EXP_USER_SW5,
+			    "user_sw5", GPIO_ACTIVE_LOW),
+		GPIO_LOOKUP("tca6416-1-21", DA850_EVM_BB_EXP_USER_SW6,
+			    "user_sw6", GPIO_ACTIVE_LOW),
+		GPIO_LOOKUP("tca6416-1-21", DA850_EVM_BB_EXP_USER_SW7,
+			    "user_sw7", GPIO_ACTIVE_LOW),
+		GPIO_LOOKUP("tca6416-1-21", DA850_EVM_BB_EXP_USER_SW8,
+			    "user_sw8", GPIO_ACTIVE_LOW),
+	},
+};
+
 static void da850_evm_bb_keys_init(unsigned gpio)
 {
 	int i;
@@ -623,8 +664,8 @@ static void da850_evm_bb_keys_init(unsigned gpio)
 		button = &da850_evm_bb_keys[i + 1];
 		button->code = SW_LID + i;
 		button->desc = da850_evm_bb_exp[DA850_EVM_BB_EXP_USER_SW1 + i];
-		button->gpio = gpio + DA850_EVM_BB_EXP_USER_SW1 + i;
 	}
+	gpiod_add_lookup_table(&da850_evm_bb_keys_gpios_table);
 }
 
 static struct gpio_led da850_evm_bb_leds[] = {
