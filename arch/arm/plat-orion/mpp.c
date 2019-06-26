@@ -12,7 +12,6 @@
 #include <linux/init.h>
 #include <linux/mbus.h>
 #include <linux/io.h>
-#include <linux/gpio.h>
 #include <plat/orion-gpio.h>
 #include <plat/mpp.h>
 

@@ -18,7 +18,8 @@
 #include <linux/spinlock.h>
 #include <linux/bitops.h>
 #include <linux/io.h>
-#include <linux/gpio.h>
+#include <linux/gpio/driver.h>
+#include <linux/gpio/consumer.h> /* FIXME: for desc_to_gpio() */
 #include <linux/leds.h>
 #include <linux/of.h>
 #include <linux/of_irq.h>
