@@ -13,6 +13,7 @@
 #include <linux/module.h>
 #include <linux/io.h>
 #include <linux/gpio/consumer.h>
+#include <linux/gpio/driver.h>
 #include <linux/of.h>
 #include <linux/of_address.h>
 #include <linux/of_gpio.h>

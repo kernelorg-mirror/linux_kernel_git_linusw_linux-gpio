@@ -46,6 +46,7 @@
 
 #ifdef CONFIG_8xx_GPIO
 #include <linux/of_gpio.h>
+#include <linux/gpio/driver.h>
 #endif
 
 #define CPM_MAP_SIZE    (0x4000)

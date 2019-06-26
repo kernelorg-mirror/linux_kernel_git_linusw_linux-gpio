@@ -13,7 +13,7 @@
 #include <linux/compiler.h>
 #include <linux/kernel.h>
 #include <linux/errno.h>
-#include <linux/gpio.h>
+#include <linux/gpio/driver.h>
 #include <linux/of.h>
 
 struct device_node;
