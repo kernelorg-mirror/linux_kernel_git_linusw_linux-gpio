@@ -11,7 +11,6 @@
 #include <linux/device.h>
 #include <linux/init.h>
 #include <linux/io.h>
-#include <linux/gpio.h>
 
 #include <mach/gpio-samsung.h>
 
