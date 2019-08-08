@@ -14,9 +14,8 @@
 #include <linux/slab.h>
 #include <linux/regulator/consumer.h>
 #include <linux/module.h>
-#include <linux/gpio.h>
+#include <linux/gpio/consumer.h>
 #include <linux/of.h>
-#include <linux/of_gpio.h>
 
 #define PEN_DOWN_INTR	0
 #define MAX_FINGERS	2
@@ -145,6 +144,8 @@
  * @in_dev: pointer to the input device structure
  * @intr_pin: interrupt pin value
  * @regulator: pointer to the Regulator used for touch screen
+ * @cs_gpiod: chip select GPIO line
+ * @int_gpiod: touch interrupt GPIO line
  *
  * Touch panel device data structure
  */
@@ -157,6 +158,8 @@ struct bu21013_ts_data {
 	unsigned int irq;
 	unsigned int intr_pin;
 	bool touch_stopped;
+	struct gpio_desc *cs_gpiod;
+	struct gpio_desc *int_gpiod;
 };
 
 /**
@@ -266,7 +269,7 @@ static irqreturn_t bu21013_gpio_irq(int irq, void *device_data)
 			return IRQ_NONE;
 		}
 
-		data->intr_pin = gpio_get_value(data->chip->touch_pin);
+		data->intr_pin = gpiod_get_value(data->int_gpiod);
 		if (data->intr_pin == PEN_DOWN_INTR)
 			wait_event_timeout(data->wait, data->touch_stopped,
 					   msecs_to_jiffies(2));
@@ -436,15 +439,13 @@ static void bu21013_cs_disable(struct bu21013_ts_data *bu21013_data)
 {
 	int error;
 
-	error = gpio_direction_output(bu21013_data->chip->cs_pin, 0);
+	error = gpiod_direction_output(bu21013_data->cs_gpiod, 0);
 	if (error < 0)
 		dev_warn(&bu21013_data->client->dev,
 			 "%s: gpio direction failed, error: %d\n",
 			 __func__, error);
 	else
-		gpio_set_value(bu21013_data->chip->cs_pin, 0);
-
-	gpio_free(bu21013_data->chip->cs_pin);
+		gpiod_set_value(bu21013_data->cs_gpiod, 0);
 }
 
 #ifdef CONFIG_OF
@@ -470,9 +471,6 @@ bu21013_parse_dt(struct device *dev)
 
 	of_property_read_u32(np, "rohm,touch-max-x", &pdata->touch_x_max);
 	of_property_read_u32(np, "rohm,touch-max-y", &pdata->touch_y_max);
-
-	pdata->touch_pin = of_get_named_gpio(np, "touch-gpio", 0);
-	pdata->cs_pin = of_get_named_gpio(np, "reset-gpio", 0);
 
 	pdata->ext_clk = false;
 
@@ -516,11 +514,6 @@ static int bu21013_probe(struct i2c_client *client,
 			return PTR_ERR(pdata);
 	}
 
-	if (!gpio_is_valid(pdata->touch_pin)) {
-		dev_err(&client->dev, "invalid touch_pin supplied\n");
-		return -EINVAL;
-	}
-
 	bu21013_data = kzalloc(sizeof(struct bu21013_ts_data), GFP_KERNEL);
 	in_dev = input_allocate_device();
 	if (!bu21013_data || !in_dev) {
@@ -529,10 +522,20 @@ static int bu21013_probe(struct i2c_client *client,
 		goto err_free_mem;
 	}
 
+	/* Named "INT" on the chip, DT binding is "touch" */
+	bu21013_data->int_gpiod = devm_gpiod_get(&client->dev, "touch",
+						 GPIOD_IN);
+	if (!IS_ERR(bu21013_data->int_gpiod)) {
+		dev_err(&client->dev, "invalid INT GPIO supplied\n");
+		error = PTR_ERR(bu21013_data->int_gpiod);
+		goto err_free_mem;
+	}
+	gpiod_set_consumer_name(bu21013_data->int_gpiod, "BU21013 INT");
+
 	bu21013_data->in_dev = in_dev;
 	bu21013_data->chip = pdata;
 	bu21013_data->client = client;
-	bu21013_data->irq = gpio_to_irq(pdata->touch_pin);
+	bu21013_data->irq = gpiod_to_irq(bu21013_data->int_gpiod);
 
 	bu21013_data->regulator = regulator_get(&client->dev, "avdd");
 	if (IS_ERR(bu21013_data->regulator)) {
@@ -550,13 +553,15 @@ static int bu21013_probe(struct i2c_client *client,
 	bu21013_data->touch_stopped = false;
 	init_waitqueue_head(&bu21013_data->wait);
 
-	/* configure the gpio pins */
-	error = gpio_request_one(pdata->cs_pin, GPIOF_OUT_INIT_HIGH,
-				 "touchp_reset");
-	if (error < 0) {
-		dev_err(&client->dev, "Unable to request gpio reset_pin\n");
+	/* Named "CS" on the chip, DT binding is "reset" */
+	bu21013_data->cs_gpiod = devm_gpiod_get(&client->dev, "reset",
+						GPIOD_OUT_HIGH);
+	if (IS_ERR(bu21013_data->cs_gpiod)) {
+		dev_err(&client->dev, "invalid CS GPIO supplied\n");
+		error = PTR_ERR(bu21013_data->cs_gpiod);
 		goto err_disable_regulator;
 	}
+	gpiod_set_consumer_name(bu21013_data->cs_gpiod, "BU21013 CS");
 
 	/* configure the touch panel controller */
 	error = bu21013_init_chip(bu21013_data);
