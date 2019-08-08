@@ -27,7 +27,8 @@
 #include <linux/pinctrl/machine.h>
 
 #ifdef CONFIG_GPIOLIB
-#include <asm-generic/gpio.h>
+#include <linux/gpio/consumer.h>
+#include <linux/gpio/driver.h>
 #endif
 
 #include "core.h"
@@ -322,7 +323,8 @@ static bool pinctrl_ready_for_gpio_range(unsigned gpio)
 {
 	struct pinctrl_dev *pctldev;
 	struct pinctrl_gpio_range *range = NULL;
-	struct gpio_chip *chip = gpio_to_chip(gpio);
+	struct gpio_desc *gpiod = gpio_to_desc(gpio);
+	struct gpio_chip *chip = gpiod_to_chip(gpiod);
 
 	if (WARN(!chip, "no gpio_chip for gpio%i?", gpio))
 		return false;

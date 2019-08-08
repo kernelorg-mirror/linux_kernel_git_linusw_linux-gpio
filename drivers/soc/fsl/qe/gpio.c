@@ -15,8 +15,7 @@
 #include <linux/of.h>
 #include <linux/of_gpio.h>
 #include <linux/gpio/driver.h>
-/* FIXME: needed for gpio_to_chip() get rid of this */
-#include <linux/gpio.h>
+#include <linux/gpio/consumer.h>
 #include <linux/slab.h>
 #include <linux/export.h>
 #include <soc/fsl/qe/qe.h>
@@ -162,6 +161,7 @@ struct qe_pin *qe_pin_request(struct device_node *np, int index)
 	struct gpio_chip *gc;
 	struct of_mm_gpio_chip *mm_gc;
 	struct qe_gpio_chip *qe_gc;
+	struct gpio_desc *gpiod;
 	int err;
 	unsigned long flags;
 
@@ -174,7 +174,10 @@ struct qe_pin *qe_pin_request(struct device_node *np, int index)
 	err = of_get_gpio(np, index);
 	if (err < 0)
 		goto err0;
-	gc = gpio_to_chip(err);
+	gpiod = gpio_to_desc(err);
+	if (!gpiod)
+		goto err0;
+	gc = gpiod_to_chip(gpiod);
 	if (WARN_ON(!gc)) {
 		err = -ENODEV;
 		goto err0;
