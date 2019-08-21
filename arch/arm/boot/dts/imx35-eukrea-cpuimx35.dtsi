@@ -3,6 +3,7 @@
  * Copyright 2013 Eukréa Electromatique <denis@eukrea.com>
  */
 
+#include <dt-bindings/gpio/gpio.h>
 #include "imx35.dtsi"
 
 / {
@@ -33,7 +34,7 @@
 
 	tsc2007: tsc2007@48 {
 		compatible = "ti,tsc2007";
-		gpios = <&gpio3 2 0>;
+		gpios = <&gpio3 2 GPIO_ACTIVE_LOW>;
 		interrupt-parent = <&gpio3>;
 		interrupts = <0x2 0x8>;
 		pinctrl-names = "default";
