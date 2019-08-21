@@ -29,7 +29,6 @@ void machine_early_init(const char *cmdline, unsigned int ram,
 		unsigned int fdt, unsigned int msr, unsigned int tlb0,
 		unsigned int tlb1);
 
-void machine_restart(char *cmd);
 void machine_shutdown(void);
 void machine_halt(void);
 void machine_power_off(void);

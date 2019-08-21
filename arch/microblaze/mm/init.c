@@ -17,6 +17,8 @@
 #include <linux/slab.h>
 #include <linux/swap.h>
 #include <linux/export.h>
+#include <linux/delay.h>
+#include <linux/reboot.h>
 
 #include <asm/page.h>
 #include <asm/mmu_context.h>
@@ -263,6 +265,15 @@ static void __init mmu_init_hw(void)
 	__asm__ __volatile__ ("ori r11, r0, 0x10000000;" \
 			"mts rzpr, r11;"
 			: : : "r11");
+}
+
+void machine_restart(char *cmd)
+{
+	do_kernel_restart(cmd);
+	/* Give the restart hook 1 s to take us down */
+	mdelay(1000);
+	pr_emerg("Reboot failed -- System halted\n");
+	while (1);
 }
 
 /*
