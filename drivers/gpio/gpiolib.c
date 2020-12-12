@@ -330,11 +330,9 @@ static struct gpio_desc *gpio_name_to_desc(const char * const name)
 
 /*
  * Take the names from gc->names and assign them to their GPIO descriptors.
- * Warn if a name is already used for a GPIO line on a different GPIO chip.
  *
- * Note that:
- *   1. Non-unique names are still accepted,
- *   2. Name collisions within the same GPIO chip are not reported.
+ * - Fail if a name is already used for a GPIO line on the same chip.
+ * - Allow names to not be globally unique but warn about it.
  */
 static int gpiochip_set_desc_names(struct gpio_chip *gc)
 {
@@ -343,13 +341,14 @@ static int gpiochip_set_desc_names(struct gpio_chip *gc)
 
 	/* First check all names if they are unique */
 	for (i = 0; i != gc->ngpio; ++i) {
-		struct gpio_desc *gpio;
+		struct gpio_desc *gpiod;
 
-		gpio = gpio_name_to_desc(gc->names[i]);
-		if (gpio)
-			dev_warn(&gdev->dev,
-				 "Detected name collision for GPIO name '%s'\n",
-				 gc->names[i]);
+		gpiod = gpio_name_to_desc(gc->names[i]);
+		if (gpiod && (gpiod->gdev == gdev)) {
+			dev_err(&gdev->dev,
+				"GPIO name collision on the same chip, this is not allowed, fix all lines on the chip to have unique names\n");
+			return -EEXIST;
+		}
 	}
 
 	/* Then add all names to the GPIO descriptors */
