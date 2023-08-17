@@ -320,6 +320,10 @@ static int rt5682_sdw_init(struct device *dev, struct regmap *regmap,
 		return ret;
 	}
 
+	ret = rt5682_get_ldo1(rt5682, dev);
+	if (ret)
+		return ret;
+
 	/*
 	 * Mark hw_init to false
 	 * HW init will be performed when device reports present
