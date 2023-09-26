@@ -209,12 +209,6 @@
 		pinctrl-names = "default";
 		pinctrl-0 = <&gpio_keys_default_mode>;
 
-		button-home {
-			linux,code = <KEY_HOME>;
-			label = "HOME";
-			/* GPIO91 */
-			gpios = <&gpio2 27 GPIO_ACTIVE_LOW>;
-		};
 		button-volup {
 			linux,code = <KEY_VOLUMEUP>;
 			label = "VOL+";
@@ -242,6 +236,7 @@
 			 */
 			gpios = <&gpio6 2 GPIO_ACTIVE_HIGH>;
 			default-state = "on";
+			trigger-sources = <&gpio2 27 GPIO_ACTIVE_LOW>;
 		};
 	};
 

@@ -459,6 +459,7 @@
 			interrupts = <GIC_SPI 121 IRQ_TYPE_LEVEL_HIGH>;
 			interrupt-controller;
 			#interrupt-cells = <2>;
+			#trigger-source-cells = <2>;
 			st,supports-sleepmode;
 			gpio-controller;
 			#gpio-cells = <2>;
