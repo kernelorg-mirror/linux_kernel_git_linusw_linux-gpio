@@ -1,0 +1,168 @@
+# SPDX-License-Identifier: GPL-2.0
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/mtd/gpio-control-nand.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: NAND memory exclusively connected to GPIO lines
+
+maintainers:
+  - Linus Walleij <linus.walleij@linaro.org>
+
+description: |
+  It is possible to connect a NAND flash memory without any
+  dedicated NAND controller hardware, using just general purpose
+  I/O (GPIO) pins. This will not be fast, but it will work.
+  The address and data lines of the chip will still need to be
+  connected so that the contents of a NAND page can be
+  memory-mapped and accessed after the special lines are toggled
+  by GPIO.
+
+# The GPIO controlled NAND has wires going directly to one single
+# NAND chip, so it is both a nand controller and a nand chip at
+# the same time, but it does not have things such as chip select
+# since the use is hammered down to one single chip only.
+# There is no point for the chip itself to be a subnode of the
+# controller so the raw NAND chip properties are added right into
+# the controller node like this.
+
+allOf:
+  - $ref: mtd.yaml#
+
+properties:
+  $nodename:
+    pattern: "^(nand|nand-controller)@[a-f0-9]+$"
+
+  compatible:
+    const: gpio-control-nand
+
+  reg:
+    description: |
+      This should specify the address where the NAND page currently
+      accessed gets memory-mapped, and the size of the page. Usually
+      this will be the same as the page size of the NAND.
+
+  label: true
+
+  partitions: true
+
+  nand-ecc-algo: true
+
+  nand-ecc-step-size: true
+
+  nand-ecc-strength: true
+
+  nand-use-soft-ecc-engine: true
+
+  gpio-control-nand,io-sync-reg:
+    description: |
+      A 64-bit physical address for a read location used to guard
+      against bus reordering with regards to accesses to the GPIOs and
+      the NAND flash data bus. If present, then after changing GPIO state
+      and before and after command byte writes, this register will be
+      read to ensure that the GPIO accesses have completed.
+    $ref: /schemas/types.yaml#/definitions/uint64
+
+  gpios:
+    description:
+      Legacy GPIO array for the NAND chip lines, order RDY,
+      NCE, ALE, CLE, NWP.
+    deprecated: true
+    maxItems: 5
+
+  rdy-gpios:
+    description:
+      GPIO for the NAND chip RDY line
+    maxItems: 1
+
+  ce-gpios:
+    description:
+      GPIO for the NAND chip CE chip enable line, usually
+      this is active low, so it should be tagged with the GPIO
+      flag GPIO_ACTIVE_LOW.
+    maxItems: 1
+
+  ale-gpios:
+    description:
+      GPIO for the NAND chip ALE line
+    maxItems: 1
+
+  cle-gpios:
+    description:
+      GPIO for the NAND chip CLE line
+    maxItems: 1
+
+  wp-gpios:
+    description:
+      GPIO for the NAND chip WP line, usually this is
+      active low, so it should be tagged with the GPIO
+      flag GPIO_ACTIVE_LOW.
+    maxItems: 1
+
+  bank-width:
+    description:
+      Width (in bytes) of the device.  If not present, the
+      width defaults to 1 byte. This is deprecated, use
+      nand-bus-width instead.
+    deprecated: true
+    enum: [ 1, 2 ]
+    default: 1
+
+  nand-bus-width:
+    description:
+      Bus width to the NAND chip
+    $ref: /schemas/types.yaml#/definitions/uint32
+    enum: [8, 16]
+    default: 8
+
+  chip-delay:
+    description:
+      chip dependent delay for transferring data from array to
+      read registers (tR). If not present then a default of 20us
+      is used.
+    $ref: /schemas/types.yaml#/definitions/uint32
+
+required:
+  - compatible
+  - reg
+  - ale-gpios
+  - cle-gpios
+
+additionalProperties: false
+
+examples:
+  - |
+    #include <dt-bindings/gpio/gpio.h>
+    nand@20200000 {
+      compatible = "gpio-control-nand";
+      /* 512 bytes memory window at 0x20200000 */
+      reg = <0x20200000 0x200>;
+      rdy-gpios = <&gpio0 7 GPIO_ACTIVE_HIGH>;
+      ce-gpios = <&gpio0 12 GPIO_ACTIVE_LOW>;
+      ale-gpios = <&gpio0 9 GPIO_ACTIVE_HIGH>;
+      cle-gpios = <&gpio0 8 GPIO_ACTIVE_HIGH>;
+      wp-gpios = <&gpio0 13 GPIO_ACTIVE_LOW>;
+
+      label = "ixp400 NAND";
+
+      nand-use-soft-ecc-engine;
+      nand-ecc-algo = "bch";
+      nand-ecc-step-size = <512>;
+      nand-ecc-strength = <4>;
+
+      partitions {
+        compatible = "fixed-partitions";
+        #address-cells = <1>;
+        #size-cells = <1>;
+
+        fs@0 {
+            label = "SysA Kernel";
+            reg = <0x0 0x400000>;
+        };
+
+        fs@400000 {
+            label = "SysA Code";
+            reg = <0x400000 0x7C00000>;
+        };
+      };
+    };
