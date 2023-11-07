@@ -22,9 +22,7 @@
 #include <linux/mtd/mtd.h>
 #include <linux/mtd/rawnand.h>
 #include <linux/mtd/partitions.h>
-#include <linux/mtd/nand-gpio.h>
-#include <linux/of.h>
-#include <linux/of_address.h>
+#include <linux/property.h>
 #include <linux/delay.h>
 
 struct gpiomtd {
@@ -32,7 +30,6 @@ struct gpiomtd {
 	void __iomem		*io;
 	void __iomem		*io_sync;
 	struct nand_chip	nand_chip;
-	struct gpio_nand_platdata plat;
 	struct gpio_desc *ce; /* Optional chip enable */
 	struct gpio_desc *cle;
 	struct gpio_desc *ale;
@@ -175,46 +172,38 @@ static const struct nand_controller_ops gpio_nand_ops = {
 	.attach_chip = gpio_nand_attach_chip,
 };
 
-#ifdef CONFIG_OF
 static const struct of_device_id gpio_nand_id_table[] = {
 	{ .compatible = "gpio-control-nand" },
 	{}
 };
 MODULE_DEVICE_TABLE(of, gpio_nand_id_table);
 
-static int gpio_nand_get_config_of(const struct device *dev,
-				   struct gpio_nand_platdata *plat)
+static int gpio_nand_get_config(struct device *dev,
+				struct nand_chip *chip)
 {
 	u32 val;
 
-	if (!dev->of_node)
-		return -ENODEV;
-
-	if (!of_property_read_u32(dev->of_node, "bank-width", &val)) {
+	if (!device_property_read_u32(dev, "bank-width", &val)) {
 		if (val == 2) {
-			plat->options |= NAND_BUSWIDTH_16;
+			chip->options |= NAND_BUSWIDTH_16;
 		} else if (val != 1) {
 			dev_err(dev, "invalid bank-width %u\n", val);
 			return -EINVAL;
 		}
 	}
 
-	if (!of_property_read_u32(dev->of_node, "chip-delay", &val))
-		plat->chip_delay = val;
-
 	return 0;
 }
 
-static struct resource *gpio_nand_get_io_sync_of(struct platform_device *pdev)
+static struct resource *gpio_nand_get_io_sync_prop(struct device *dev)
 {
 	struct resource *r;
 	u64 addr;
 
-	if (of_property_read_u64(pdev->dev.of_node,
-				       "gpio-control-nand,io-sync-reg", &addr))
+	if (device_property_read_u64(dev, "gpio-control-nand,io-sync-reg", &addr))
 		return NULL;
 
-	r = devm_kzalloc(&pdev->dev, sizeof(*r), GFP_KERNEL);
+	r = devm_kzalloc(dev, sizeof(*r), GFP_KERNEL);
 	if (!r)
 		return NULL;
 
@@ -224,40 +213,11 @@ static struct resource *gpio_nand_get_io_sync_of(struct platform_device *pdev)
 
 	return r;
 }
-#else /* CONFIG_OF */
-static inline int gpio_nand_get_config_of(const struct device *dev,
-					  struct gpio_nand_platdata *plat)
-{
-	return -ENOSYS;
-}
-
-static inline struct resource *
-gpio_nand_get_io_sync_of(struct platform_device *pdev)
-{
-	return NULL;
-}
-#endif /* CONFIG_OF */
-
-static inline int gpio_nand_get_config(const struct device *dev,
-				       struct gpio_nand_platdata *plat)
-{
-	int ret = gpio_nand_get_config_of(dev, plat);
-
-	if (!ret)
-		return ret;
-
-	if (dev_get_platdata(dev)) {
-		memcpy(plat, dev_get_platdata(dev), sizeof(*plat));
-		return 0;
-	}
-
-	return -EINVAL;
-}
 
 static inline struct resource *
 gpio_nand_get_io_sync(struct platform_device *pdev)
 {
-	struct resource *r = gpio_nand_get_io_sync_of(pdev);
+	struct resource *r = gpio_nand_get_io_sync_prop(&pdev->dev);
 
 	if (r)
 		return r;
@@ -291,9 +251,6 @@ static int gpio_nand_probe(struct platform_device *pdev)
 	struct device *dev = &pdev->dev;
 	int ret = 0;
 
-	if (!dev->of_node && !dev_get_platdata(dev))
-		return -EINVAL;
-
 	gpiomtd = devm_kzalloc(dev, sizeof(*gpiomtd), GFP_KERNEL);
 	if (!gpiomtd)
 		return -ENOMEM;
@@ -311,7 +268,7 @@ static int gpio_nand_probe(struct platform_device *pdev)
 			return PTR_ERR(gpiomtd->io_sync);
 	}
 
-	ret = gpio_nand_get_config(dev, &gpiomtd->plat);
+	ret = gpio_nand_get_config(dev, chip);
 	if (ret)
 		return ret;
 
@@ -349,7 +306,6 @@ static int gpio_nand_probe(struct platform_device *pdev)
 	gpiomtd->base.ops = &gpio_nand_ops;
 
 	nand_set_flash_node(chip, pdev->dev.of_node);
-	chip->options		= gpiomtd->plat.options;
 	chip->controller	= &gpiomtd->base;
 
 	mtd			= nand_to_mtd(chip);
@@ -372,11 +328,7 @@ static int gpio_nand_probe(struct platform_device *pdev)
 	if (ret)
 		goto err_wp;
 
-	if (gpiomtd->plat.adjust_parts)
-		gpiomtd->plat.adjust_parts(&gpiomtd->plat, mtd->size);
-
-	ret = mtd_device_register(mtd, gpiomtd->plat.parts,
-				  gpiomtd->plat.num_parts);
+	ret = mtd_device_register(mtd, NULL, 0);
 	if (!ret)
 		return 0;
 
@@ -395,7 +347,7 @@ static struct platform_driver gpio_nand_driver = {
 	.remove_new	= gpio_nand_remove,
 	.driver		= {
 		.name	= "gpio-nand",
-		.of_match_table = of_match_ptr(gpio_nand_id_table),
+		.of_match_table = gpio_nand_id_table,
 	},
 };
 
