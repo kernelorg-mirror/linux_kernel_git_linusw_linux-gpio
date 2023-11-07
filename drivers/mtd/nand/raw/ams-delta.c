@@ -33,10 +33,10 @@ struct gpio_nand {
 	struct nand_controller	base;
 	struct nand_chip	nand_chip;
 	struct gpio_desc	*gpiod_rdy;
-	struct gpio_desc	*gpiod_nce;
-	struct gpio_desc	*gpiod_nre;
-	struct gpio_desc	*gpiod_nwp;
-	struct gpio_desc	*gpiod_nwe;
+	struct gpio_desc	*gpiod_ce;
+	struct gpio_desc	*gpiod_re;
+	struct gpio_desc	*gpiod_wp;
+	struct gpio_desc	*gpiod_we;
 	struct gpio_desc	*gpiod_ale;
 	struct gpio_desc	*gpiod_cle;
 	struct gpio_descs	*data_gpiods;
@@ -49,9 +49,9 @@ struct gpio_nand {
 
 static void gpio_nand_write_commit(struct gpio_nand *priv)
 {
-	gpiod_set_value(priv->gpiod_nwe, 1);
+	gpiod_set_value(priv->gpiod_we, 1);
 	ndelay(priv->tWP);
-	gpiod_set_value(priv->gpiod_nwe, 0);
+	gpiod_set_value(priv->gpiod_we, 0);
 }
 
 static void gpio_nand_io_write(struct gpio_nand *priv, u8 byte)
@@ -86,13 +86,13 @@ static u8 gpio_nand_io_read(struct gpio_nand *priv)
 	struct gpio_descs *data_gpiods = priv->data_gpiods;
 	DECLARE_BITMAP(values, BITS_PER_TYPE(res)) = { 0, };
 
-	gpiod_set_value(priv->gpiod_nre, 1);
+	gpiod_set_value(priv->gpiod_re, 1);
 	ndelay(priv->tRP);
 
 	gpiod_get_raw_array_value(data_gpiods->ndescs, data_gpiods->desc,
 				  data_gpiods->info, values);
 
-	gpiod_set_value(priv->gpiod_nre, 0);
+	gpiod_set_value(priv->gpiod_re, 0);
 
 	res = values[0];
 	return res;
@@ -133,7 +133,7 @@ static void gpio_nand_read_buf(struct gpio_nand *priv, u8 *buf, int len)
 
 static void gpio_nand_ctrl_cs(struct gpio_nand *priv, bool assert)
 {
-	gpiod_set_value(priv->gpiod_nce, assert);
+	gpiod_set_value(priv->gpiod_ce, assert);
 }
 
 static int gpio_nand_exec_op(struct nand_chip *this,
@@ -204,7 +204,7 @@ static int gpio_nand_setup_interface(struct nand_chip *this, int csline,
 	if (csline == NAND_DATA_IFACE_CHECK_ONLY)
 		return 0;
 
-	if (priv->gpiod_nre) {
+	if (priv->gpiod_re) {
 		priv->tRP = DIV_ROUND_UP(sdr->tRP_min, 1000);
 		dev_dbg(dev, "using %u ns read pulse width\n", priv->tRP);
 	}
@@ -273,35 +273,35 @@ static int gpio_nand_probe(struct platform_device *pdev)
 	platform_set_drvdata(pdev, priv);
 
 	/* Set chip enabled but write protected */
-	priv->gpiod_nwp = devm_gpiod_get_optional(&pdev->dev, "nwp",
+	priv->gpiod_wp = devm_gpiod_get_optional(&pdev->dev, "wp",
 						  GPIOD_OUT_HIGH);
-	if (IS_ERR(priv->gpiod_nwp)) {
-		err = PTR_ERR(priv->gpiod_nwp);
-		dev_err(&pdev->dev, "NWP GPIO request failed (%d)\n", err);
+	if (IS_ERR(priv->gpiod_wp)) {
+		err = PTR_ERR(priv->gpiod_wp);
+		dev_err(&pdev->dev, "WP GPIO request failed (%d)\n", err);
 		return err;
 	}
 
-	priv->gpiod_nce = devm_gpiod_get_optional(&pdev->dev, "nce",
+	priv->gpiod_ce = devm_gpiod_get_optional(&pdev->dev, "ce",
 						  GPIOD_OUT_LOW);
-	if (IS_ERR(priv->gpiod_nce)) {
-		err = PTR_ERR(priv->gpiod_nce);
-		dev_err(&pdev->dev, "NCE GPIO request failed (%d)\n", err);
+	if (IS_ERR(priv->gpiod_ce)) {
+		err = PTR_ERR(priv->gpiod_ce);
+		dev_err(&pdev->dev, "CE GPIO request failed (%d)\n", err);
 		return err;
 	}
 
-	priv->gpiod_nre = devm_gpiod_get_optional(&pdev->dev, "nre",
+	priv->gpiod_re = devm_gpiod_get_optional(&pdev->dev, "re",
 						  GPIOD_OUT_LOW);
-	if (IS_ERR(priv->gpiod_nre)) {
-		err = PTR_ERR(priv->gpiod_nre);
-		dev_err(&pdev->dev, "NRE GPIO request failed (%d)\n", err);
+	if (IS_ERR(priv->gpiod_re)) {
+		err = PTR_ERR(priv->gpiod_re);
+		dev_err(&pdev->dev, "RE GPIO request failed (%d)\n", err);
 		return err;
 	}
 
-	priv->gpiod_nwe = devm_gpiod_get_optional(&pdev->dev, "nwe",
+	priv->gpiod_we = devm_gpiod_get_optional(&pdev->dev, "we",
 						  GPIOD_OUT_LOW);
-	if (IS_ERR(priv->gpiod_nwe)) {
-		err = PTR_ERR(priv->gpiod_nwe);
-		dev_err(&pdev->dev, "NWE GPIO request failed (%d)\n", err);
+	if (IS_ERR(priv->gpiod_we)) {
+		err = PTR_ERR(priv->gpiod_we);
+		dev_err(&pdev->dev, "WE GPIO request failed (%d)\n", err);
 		return err;
 	}
 
@@ -328,9 +328,9 @@ static int gpio_nand_probe(struct platform_device *pdev)
 		return err;
 	}
 	if (priv->data_gpiods) {
-		if (!priv->gpiod_nwe) {
+		if (!priv->gpiod_we) {
 			dev_err(&pdev->dev,
-				"mandatory NWE pin not provided by platform\n");
+				"mandatory WE pin not provided by platform\n");
 			return -ENODEV;
 		}
 
@@ -367,7 +367,7 @@ static int gpio_nand_probe(struct platform_device *pdev)
 	 * chip detection/initialization.
 	 */
 	/* Release write protection */
-	gpiod_set_value(priv->gpiod_nwp, 0);
+	gpiod_set_value(priv->gpiod_wp, 0);
 
 	/*
 	 * This driver assumes that the default ECC engine should be TYPE_SOFT.
@@ -404,7 +404,7 @@ static void gpio_nand_remove(struct platform_device *pdev)
 	int ret;
 
 	/* Apply write protection */
-	gpiod_set_value(priv->gpiod_nwp, 1);
+	gpiod_set_value(priv->gpiod_wp, 1);
 
 	/* Unregister device */
 	ret = mtd_device_unregister(mtd);

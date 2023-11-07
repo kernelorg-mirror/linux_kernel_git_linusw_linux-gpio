@@ -33,11 +33,11 @@ struct gpiomtd {
 	void __iomem		*io_sync;
 	struct nand_chip	nand_chip;
 	struct gpio_nand_platdata plat;
-	struct gpio_desc *nce; /* Optional chip enable */
+	struct gpio_desc *ce; /* Optional chip enable */
 	struct gpio_desc *cle;
 	struct gpio_desc *ale;
 	struct gpio_desc *rdy;
-	struct gpio_desc *nwp; /* Optional write protection */
+	struct gpio_desc *wp; /* Optional write protection */
 };
 
 static inline struct gpiomtd *gpio_nand_getpriv(struct mtd_info *mtd)
@@ -146,7 +146,7 @@ static int gpio_nand_exec_op(struct nand_chip *chip,
 		return 0;
 
 	gpio_nand_dosync(gpiomtd);
-	gpiod_set_value(gpiomtd->nce, 0);
+	gpiod_set_value(gpiomtd->ce, 1);
 	for (i = 0; i < op->ninstrs; i++) {
 		ret = gpio_nand_exec_instr(chip, &op->instrs[i]);
 		if (ret)
@@ -156,7 +156,7 @@ static int gpio_nand_exec_op(struct nand_chip *chip,
 			ndelay(op->instrs[i].delay_ns);
 	}
 	gpio_nand_dosync(gpiomtd);
-	gpiod_set_value(gpiomtd->nce, 1);
+	gpiod_set_value(gpiomtd->ce, 0);
 
 	return ret;
 }
@@ -276,10 +276,10 @@ static void gpio_nand_remove(struct platform_device *pdev)
 	nand_cleanup(chip);
 
 	/* Enable write protection and disable the chip */
-	if (gpiomtd->nwp && !IS_ERR(gpiomtd->nwp))
-		gpiod_set_value(gpiomtd->nwp, 0);
-	if (gpiomtd->nce && !IS_ERR(gpiomtd->nce))
-		gpiod_set_value(gpiomtd->nce, 0);
+	if (gpiomtd->wp && !IS_ERR(gpiomtd->wp))
+		gpiod_set_value(gpiomtd->wp, 1);
+	if (gpiomtd->ce && !IS_ERR(gpiomtd->ce))
+		gpiod_set_value(gpiomtd->ce, 0);
 }
 
 static int gpio_nand_probe(struct platform_device *pdev)
@@ -316,14 +316,14 @@ static int gpio_nand_probe(struct platform_device *pdev)
 		return ret;
 
 	/* Just enable the chip */
-	gpiomtd->nce = devm_gpiod_get_optional(dev, "nce", GPIOD_OUT_HIGH);
-	if (IS_ERR(gpiomtd->nce))
-		return PTR_ERR(gpiomtd->nce);
+	gpiomtd->ce = devm_gpiod_get_optional(dev, "ce", GPIOD_OUT_HIGH);
+	if (IS_ERR(gpiomtd->ce))
+		return PTR_ERR(gpiomtd->ce);
 
 	/* We disable write protection once we know probe() will succeed */
-	gpiomtd->nwp = devm_gpiod_get_optional(dev, "nwp", GPIOD_OUT_LOW);
-	if (IS_ERR(gpiomtd->nwp)) {
-		ret = PTR_ERR(gpiomtd->nwp);
+	gpiomtd->wp = devm_gpiod_get_optional(dev, "wp", GPIOD_OUT_HIGH);
+	if (IS_ERR(gpiomtd->wp)) {
+		ret = PTR_ERR(gpiomtd->wp);
 		goto out_ce;
 	}
 
@@ -358,8 +358,8 @@ static int gpio_nand_probe(struct platform_device *pdev)
 	platform_set_drvdata(pdev, gpiomtd);
 
 	/* Disable write protection, if wired up */
-	if (gpiomtd->nwp && !IS_ERR(gpiomtd->nwp))
-		gpiod_direction_output(gpiomtd->nwp, 1);
+	if (gpiomtd->wp && !IS_ERR(gpiomtd->wp))
+		gpiod_direction_output(gpiomtd->wp, 0);
 
 	/*
 	 * This driver assumes that the default ECC engine should be TYPE_SOFT.
@@ -381,11 +381,11 @@ static int gpio_nand_probe(struct platform_device *pdev)
 		return 0;
 
 err_wp:
-	if (gpiomtd->nwp && !IS_ERR(gpiomtd->nwp))
-		gpiod_set_value(gpiomtd->nwp, 0);
+	if (gpiomtd->wp && !IS_ERR(gpiomtd->wp))
+		gpiod_set_value(gpiomtd->wp, 1);
 out_ce:
-	if (gpiomtd->nce && !IS_ERR(gpiomtd->nce))
-		gpiod_set_value(gpiomtd->nce, 0);
+	if (gpiomtd->ce && !IS_ERR(gpiomtd->ce))
+		gpiod_set_value(gpiomtd->ce, 0);
 
 	return ret;
 }
