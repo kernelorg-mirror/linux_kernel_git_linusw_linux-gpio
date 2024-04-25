@@ -9,6 +9,7 @@
 #include <linux/dmaengine.h>
 #include <linux/spi/pxa2xx_spi.h>
 #include <linux/platform_data/i2c-pxa.h>
+#include <linux/property.h>
 #include <linux/soc/pxa/cpu.h>
 
 #include "udc.h"
@@ -679,6 +680,21 @@ void __init pxa2xx_set_spi_info(unsigned id, struct pxa2xx_spi_controller *info)
 	}
 
 	pd->dev.platform_data = info;
+	platform_device_add(pd);
+}
+
+void __init pxa2xx_set_spi_node(unsigned id, const struct property_entry *props)
+{
+	struct platform_device *pd;
+
+	pd = platform_device_alloc("pxa2xx-spi", id);
+	if (pd == NULL) {
+		printk(KERN_ERR "pxa2xx-spi: failed to allocate device id %d\n",
+		       id);
+		return;
+	}
+
+	device_create_managed_software_node(&pd->dev, props, NULL);
 	platform_device_add(pd);
 }
 

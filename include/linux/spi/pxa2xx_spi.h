@@ -6,6 +6,7 @@
 #define __LINUX_SPI_PXA2XX_SPI_H
 
 #include <linux/dmaengine.h>
+#include <linux/property.h>
 #include <linux/types.h>
 
 #include <linux/pxa2xx_ssp.h>
@@ -50,6 +51,7 @@ struct pxa2xx_spi_chip {
 #include <linux/clk.h>
 
 extern void pxa2xx_set_spi_info(unsigned id, struct pxa2xx_spi_controller *info);
+void pxa2xx_set_spi_node(unsigned id, const struct property_entry *props);
 
 #endif
 
