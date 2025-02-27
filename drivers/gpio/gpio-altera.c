@@ -106,70 +106,6 @@ static unsigned int altera_gpio_irq_startup(struct irq_data *d)
 	return 0;
 }
 
-static int altera_gpio_get(struct gpio_chip *gc, unsigned offset)
-{
-	struct altera_gpio_chip *altera_gc = gpiochip_get_data(gc);
-
-	return !!(readl(altera_gc->regs + ALTERA_GPIO_DATA) & BIT(offset));
-}
-
-static void altera_gpio_set(struct gpio_chip *gc, unsigned offset, int value)
-{
-	struct altera_gpio_chip *altera_gc = gpiochip_get_data(gc);
-	unsigned long flags;
-	unsigned int data_reg;
-
-	raw_spin_lock_irqsave(&altera_gc->gpio_lock, flags);
-	data_reg = readl(altera_gc->regs + ALTERA_GPIO_DATA);
-	if (value)
-		data_reg |= BIT(offset);
-	else
-		data_reg &= ~BIT(offset);
-	writel(data_reg, altera_gc->regs + ALTERA_GPIO_DATA);
-	raw_spin_unlock_irqrestore(&altera_gc->gpio_lock, flags);
-}
-
-static int altera_gpio_direction_input(struct gpio_chip *gc, unsigned offset)
-{
-	struct altera_gpio_chip *altera_gc = gpiochip_get_data(gc);
-	unsigned long flags;
-	unsigned int gpio_ddr;
-
-	raw_spin_lock_irqsave(&altera_gc->gpio_lock, flags);
-	/* Set pin as input, assumes software controlled IP */
-	gpio_ddr = readl(altera_gc->regs + ALTERA_GPIO_DIR);
-	gpio_ddr &= ~BIT(offset);
-	writel(gpio_ddr, altera_gc->regs + ALTERA_GPIO_DIR);
-	raw_spin_unlock_irqrestore(&altera_gc->gpio_lock, flags);
-
-	return 0;
-}
-
-static int altera_gpio_direction_output(struct gpio_chip *gc,
-		unsigned offset, int value)
-{
-	struct altera_gpio_chip *altera_gc = gpiochip_get_data(gc);
-	unsigned long flags;
-	unsigned int data_reg, gpio_ddr;
-
-	raw_spin_lock_irqsave(&altera_gc->gpio_lock, flags);
-	/* Sets the GPIO value */
-	data_reg = readl(altera_gc->regs + ALTERA_GPIO_DATA);
-	if (value)
-		data_reg |= BIT(offset);
-	else
-		data_reg &= ~BIT(offset);
-	writel(data_reg, altera_gc->regs + ALTERA_GPIO_DATA);
-
-	/* Set pin as output, assumes software controlled IP */
-	gpio_ddr = readl(altera_gc->regs + ALTERA_GPIO_DIR);
-	gpio_ddr |= BIT(offset);
-	writel(gpio_ddr, altera_gc->regs + ALTERA_GPIO_DIR);
-	raw_spin_unlock_irqrestore(&altera_gc->gpio_lock, flags);
-
-	return 0;
-}
-
 static void altera_gpio_irq_edge_handler(struct irq_desc *desc)
 {
 	struct gpio_chip *gc = irq_desc_get_handler_data(desc);
@@ -242,7 +178,22 @@ static int altera_gpio_probe(struct platform_device *pdev)
 
 	raw_spin_lock_init(&altera_gc->gpio_lock);
 
+	altera_gc->regs = devm_platform_ioremap_resource(pdev, 0);
+	if (IS_ERR(altera_gc->regs))
+		return dev_err_probe(dev, PTR_ERR(altera_gc->regs),
+				     "failed to ioremap memory resource\n");
+
 	gc = &altera_gc->gc;
+
+	ret = bgpio_init(gc, dev, 4,
+			 altera_gc->regs + ALTERA_GPIO_DATA,
+			 altera_gc->regs + ALTERA_GPIO_DATA,
+			 NULL,
+			 altera_gc->regs + ALTERA_GPIO_DIR,
+			 NULL,
+			 0);
+	if (ret)
+		return dev_err_probe(dev, ret, "unable to init generic GPIO\n");
 
 	if (device_property_read_u32(dev, "altr,ngpio", &reg))
 		/* By default assume maximum ngpio */
@@ -257,21 +208,10 @@ static int altera_gpio_probe(struct platform_device *pdev)
 		gc->ngpio = ALTERA_GPIO_MAX_NGPIO;
 	}
 
-	gc->direction_input	= altera_gpio_direction_input;
-	gc->direction_output	= altera_gpio_direction_output;
-	gc->get		= altera_gpio_get;
-	gc->set		= altera_gpio_set;
-	gc->owner		= THIS_MODULE;
-	gc->parent		= &pdev->dev;
-	gc->base		= -1;
-
+	gc->base = -1;
 	gc->label = devm_kasprintf(dev, GFP_KERNEL, "%pfw", dev_fwnode(dev));
 	if (!gc->label)
 		return -ENOMEM;
-
-	altera_gc->regs = devm_platform_ioremap_resource(pdev, 0);
-	if (IS_ERR(altera_gc->regs))
-		return dev_err_probe(dev, PTR_ERR(altera_gc->regs), "failed to ioremap memory resource\n");
 
 	mapped_irq = platform_get_irq_optional(pdev, 0);
 	if (mapped_irq < 0)
